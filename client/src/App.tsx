@@ -26,6 +26,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/content" component={ContentManager} />
           <Route path="/editor/:id?" component={TranslationEditor} />
+          <Route path="/translation-editor/:id?" component={TranslationEditor} />
           <Route path="/glossary" component={Glossary} />
           <Route path="/export" component={ExportCenter} />
           <Route path="/progress" component={ProgressTracking} />
