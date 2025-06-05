@@ -50,7 +50,7 @@ export default function TranslationEditor() {
   const [showTMPanel, setShowTMPanel] = useState(true);
   const { toast } = useToast();
 
-  const { data: project, isLoading } = useQuery({
+  const { data: project, isLoading } = useQuery<TranslationProject>({
     queryKey: [`/api/translation-projects/${id}`],
     enabled: !!id,
   });
@@ -82,13 +82,19 @@ export default function TranslationEditor() {
     
     setIsAutoSaving(true);
     try {
-      await apiRequest(`/api/translation-projects/${project.id}`, {
+      const response = await fetch(`/api/translation-projects/${project.id}`, {
         method: "PATCH",
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           translatedText,
           progress: Math.min(100, Math.round((translatedText.length / (project.content.koreanTranscription?.length || 1)) * 100))
         }),
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
     } catch (error) {
       console.error("Auto-save failed:", error);
     } finally {

@@ -84,7 +84,11 @@ export default function TMPanel({
       if (event) params.append('event', event);
       if (topic) params.append('topic', topic);
       
-      return apiRequest(`/api/translation-memory/search?${params}`);
+      const response = await fetch(`/api/translation-memory/search?${params}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
     },
     staleTime: 30 * 1000, // 30 seconds
   });
