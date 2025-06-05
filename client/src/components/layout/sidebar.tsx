@@ -9,7 +9,10 @@ import {
   Download, 
   Users, 
   Settings,
-  Languages
+  Languages,
+  Search,
+  Shield,
+  MessageCircle
 } from "lucide-react";
 
 const navigation = [
@@ -19,6 +22,12 @@ const navigation = [
   { name: "Glossary", href: "/glossary", icon: Book },
   { name: "Progress Tracking", href: "/progress", icon: TrendingUp },
   { name: "Export Center", href: "/export", icon: Download },
+];
+
+const advancedNavigation = [
+  { name: "Advanced Search", href: "/search", icon: Search },
+  { name: "Quality Assurance", href: "/quality", icon: Shield },
+  { name: "Collaboration", href: "/collaboration", icon: MessageCircle },
 ];
 
 const accountNavigation = [
@@ -67,6 +76,31 @@ export default function Sidebar() {
             );
           })}
         </ul>
+
+        <div className="mt-8 pt-8 border-t border-border">
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Advanced Features
+            </h3>
+            {advancedNavigation.map((item) => {
+              const isActive = location === item.href;
+              
+              return (
+                <a
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "sidebar-nav-item",
+                    isActive ? "sidebar-nav-item-active" : "sidebar-nav-item-inactive"
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.name}</span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="mt-8 pt-8 border-t border-border">
           <div className="space-y-2">

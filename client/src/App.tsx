@@ -11,6 +11,10 @@ import Glossary from "@/pages/glossary";
 import ExportCenter from "@/pages/export-center";
 import ProgressTracking from "@/pages/progress-tracking";
 import UserManagement from "@/pages/user-management";
+import AdvancedSearch from "@/pages/advanced-search";
+import QualityAssurance from "@/pages/quality-assurance";
+import Collaboration from "@/pages/collaboration";
+import Settings from "@/pages/settings";
 import Sidebar from "@/components/layout/sidebar";
 
 function Router() {
@@ -26,6 +30,10 @@ function Router() {
           <Route path="/export" component={ExportCenter} />
           <Route path="/progress" component={ProgressTracking} />
           <Route path="/users" component={UserManagement} />
+          <Route path="/search" component={AdvancedSearch} />
+          <Route path="/quality" component={QualityAssurance} />
+          <Route path="/collaboration" component={Collaboration} />
+          <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
       </main>
