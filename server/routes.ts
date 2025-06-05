@@ -12,6 +12,7 @@ import {
   insertExportJobSchema
 } from "@shared/schema";
 import multer from "multer";
+import { azureTranslatorService } from "./azure-translator";
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -426,7 +427,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Azure Translator integration endpoint
+  // Azure Custom Translator API endpoints
+  
+  // Get available custom models
+  app.get("/api/azure-translator/models", async (req, res) => {
+    try {
+      const models = await azureTranslatorService.getCustomModels();
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching custom models:", error);
+      res.status(500).json({ message: "Failed to fetch custom models" });
+    }
+  });
+
+  // Standard translation
+  app.post("/api/azure-translator/translate", async (req, res) => {
+    try {
+      const { text, from = "ko", to = "en", category } = req.body;
+      
+      if (!text) {
+        return res.status(400).json({ message: "Text is required" });
+      }
+
+      const result = await azureTranslatorService.translateText({
+        text,
+        from,
+        to,
+        category,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error translating text:", error);
+      res.status(500).json({ message: "Translation failed" });
+    }
+  });
+
+  // Biblical domain-specific translation
+  app.post("/api/azure-translator/translate/biblical", async (req, res) => {
+    try {
+      const { text, from = "ko", to = "en" } = req.body;
+      
+      if (!text) {
+        return res.status(400).json({ message: "Text is required" });
+      }
+
+      const translatedText = await azureTranslatorService.translateBiblical(text, from, to);
+      
+      res.json({ 
+        translatedText,
+        model: "biblical-ko-en-v1",
+        category: "biblical"
+      });
+    } catch (error) {
+      console.error("Error in biblical translation:", error);
+      res.status(500).json({ message: "Biblical translation failed" });
+    }
+  });
+
+  // Theological domain-specific translation
+  app.post("/api/azure-translator/translate/theological", async (req, res) => {
+    try {
+      const { text, from = "ko", to = "en" } = req.body;
+      
+      if (!text) {
+        return res.status(400).json({ message: "Text is required" });
+      }
+
+      const translatedText = await azureTranslatorService.translateTheological(text, from, to);
+      
+      res.json({ 
+        translatedText,
+        model: "theological-ko-en-v1",
+        category: "theological"
+      });
+    } catch (error) {
+      console.error("Error in theological translation:", error);
+      res.status(500).json({ message: "Theological translation failed" });
+    }
+  });
+
+  // Batch translation with custom models
+  app.post("/api/azure-translator/translate/batch", async (req, res) => {
+    try {
+      const { texts, category, from = "ko", to = "en" } = req.body;
+      
+      if (!texts || !Array.isArray(texts)) {
+        return res.status(400).json({ message: "Texts array is required" });
+      }
+
+      const translations = await azureTranslatorService.translateBatch(texts, category, from, to);
+      
+      res.json({ 
+        translations,
+        category,
+        count: translations.length
+      });
+    } catch (error) {
+      console.error("Error in batch translation:", error);
+      res.status(500).json({ message: "Batch translation failed" });
+    }
+  });
+
+  // Translation quality assessment
+  app.post("/api/azure-translator/quality", async (req, res) => {
+    try {
+      const { sourceText, translatedText, from = "ko", to = "en" } = req.body;
+      
+      if (!sourceText || !translatedText) {
+        return res.status(400).json({ message: "Source and translated text are required" });
+      }
+
+      const quality = await azureTranslatorService.getTranslationQuality(sourceText, translatedText, from, to);
+      
+      res.json(quality);
+    } catch (error) {
+      console.error("Error assessing translation quality:", error);
+      res.status(500).json({ message: "Quality assessment failed" });
+    }
+  });
+
+  // Language detection
+  app.post("/api/azure-translator/detect", async (req, res) => {
+    try {
+      const { text } = req.body;
+      
+      if (!text) {
+        return res.status(400).json({ message: "Text is required" });
+      }
+
+      const detection = await azureTranslatorService.detectLanguage(text);
+      
+      res.json(detection);
+    } catch (error) {
+      console.error("Error detecting language:", error);
+      res.status(500).json({ message: "Language detection failed" });
+    }
+  });
+
+  // Legacy translation endpoint for backward compatibility
   app.post("/api/translate", async (req, res) => {
     try {
       const { text, from = "ko", to = "en" } = req.body;
@@ -435,35 +574,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Text is required" });
       }
 
-      // Azure Translator integration
-      const subscriptionKey = process.env.AZURE_TRANSLATOR_KEY || process.env.TRANSLATOR_TEXT_SUBSCRIPTION_KEY;
-      const endpoint = process.env.AZURE_TRANSLATOR_ENDPOINT || "https://api.cognitive.microsofttranslator.com";
-      const region = process.env.AZURE_TRANSLATOR_REGION || "global";
-
-      if (!subscriptionKey) {
-        return res.status(500).json({ message: "Azure Translator not configured" });
-      }
-
-      const response = await fetch(`${endpoint}/translate?api-version=3.0&from=${from}&to=${to}`, {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': subscriptionKey,
-          'Ocp-Apim-Subscription-Region': region,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify([{ text }]),
+      const result = await azureTranslatorService.translateText({
+        text,
+        from,
+        to,
       });
 
-      if (!response.ok) {
-        throw new Error(`Azure Translator API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      const translatedText = result[0]?.translations[0]?.text || text;
-      
-      res.json({ translatedText });
+      res.json({ translatedText: result.translations[0]?.text || text });
     } catch (error) {
-      console.error("Error with translation:", error);
+      console.error("Error in legacy translation:", error);
       res.status(500).json({ message: "Translation failed" });
     }
   });
