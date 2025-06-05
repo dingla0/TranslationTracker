@@ -63,9 +63,28 @@ export interface IStorage {
   searchGlossaryTerms(query: string): Promise<GlossaryTerm[]>;
   
   // Translation memory operations
-  getTranslationMemory(): Promise<TranslationMemory[]>;
-  searchTranslationMemory(sourceText: string, similarity?: number): Promise<TranslationMemory[]>;
+  getTranslationMemory(): Promise<(TranslationMemory & { translatedBy: User | null })[]>;
+  searchTranslationMemory(params: {
+    sourceText: string;
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    similarity?: number;
+    event?: string;
+    topic?: string;
+    translatorId?: number;
+    limit?: number;
+  }): Promise<(TranslationMemory & { translatedBy: User | null; matchScore: number })[]>;
   createTranslationMemory(memory: InsertTranslationMemory): Promise<TranslationMemory>;
+  updateTranslationMemory(id: number, memory: Partial<InsertTranslationMemory>): Promise<TranslationMemory>;
+  deleteTranslationMemory(id: number): Promise<void>;
+  
+  // TM feedback operations
+  createTmFeedback(feedback: InsertTmFeedback): Promise<TmFeedback>;
+  getTmFeedback(tmSegmentId: number): Promise<TmFeedback[]>;
+  
+  // TM version operations
+  createTmVersion(version: InsertTmVersion): Promise<TmVersion>;
+  getTmVersions(tmSegmentId: number): Promise<(TmVersion & { changedBy: User })[]>;
   
   // Activity operations
   getActivities(limit?: number): Promise<(Activity & { user: User | null })[]>;
@@ -263,25 +282,124 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  // Translation memory operations
-  async getTranslationMemory(): Promise<TranslationMemory[]> {
+  // Translation memory operations with advanced fuzzy matching
+  async getTranslationMemory(): Promise<(TranslationMemory & { translatedBy: User | null })[]> {
     return await db
       .select()
       .from(translationMemory)
-      .orderBy(desc(translationMemory.createdAt));
+      .leftJoin(users, eq(translationMemory.translatedBy, users.id))
+      .orderBy(desc(translationMemory.createdAt))
+      .then(rows => rows.map(row => ({
+        ...row.translation_memory,
+        translatedBy: row.users,
+      })));
   }
 
-  async searchTranslationMemory(sourceText: string, similarity = 70): Promise<TranslationMemory[]> {
-    return await db
+  // Advanced TM search with fuzzy matching using Levenshtein distance
+  async searchTranslationMemory(params: {
+    sourceText: string;
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    similarity?: number;
+    event?: string;
+    topic?: string;
+    translatorId?: number;
+    limit?: number;
+  }): Promise<(TranslationMemory & { translatedBy: User | null; matchScore: number })[]> {
+    const {
+      sourceText,
+      sourceLanguage = 'ko',
+      targetLanguage = 'en',
+      similarity = 70,
+      event,
+      topic,
+      translatorId,
+      limit = 10
+    } = params;
+
+    // First get exact matches
+    let query = db
       .select()
       .from(translationMemory)
+      .leftJoin(users, eq(translationMemory.translatedBy, users.id))
       .where(
         and(
-          sql`${translationMemory.sourceText} ILIKE ${`%${sourceText}%`}`,
-          sql`${translationMemory.similarity} >= ${similarity}`
+          eq(translationMemory.sourceLanguage, sourceLanguage),
+          eq(translationMemory.targetLanguage, targetLanguage),
+          event ? eq(translationMemory.event, event) : undefined,
+          topic ? eq(translationMemory.topic, topic) : undefined,
+          translatorId ? eq(translationMemory.translatedBy, translatorId) : undefined
         )
-      )
-      .orderBy(desc(translationMemory.similarity));
+      );
+
+    const results = await query
+      .orderBy(desc(translationMemory.usageCount), desc(translationMemory.createdAt))
+      .limit(limit * 2); // Get more results for fuzzy matching
+
+    // Calculate match scores using simplified string similarity
+    const scoredResults = results
+      .map(row => {
+        const tmEntry = row.translation_memory;
+        const matchScore = this.calculateSimilarity(sourceText, tmEntry.sourceText);
+        
+        // Context boost: same event or topic gets +10 points
+        let contextBoost = 0;
+        if (event && tmEntry.event === event) contextBoost += 10;
+        if (topic && tmEntry.topic === topic) contextBoost += 10;
+        if (translatorId && tmEntry.translatedBy === translatorId) contextBoost += 5;
+        
+        const finalScore = Math.min(100, matchScore + contextBoost);
+        
+        return {
+          ...tmEntry,
+          translatedBy: row.users,
+          matchScore: finalScore
+        };
+      })
+      .filter(result => result.matchScore >= similarity)
+      .sort((a, b) => {
+        // Sort by match score first, then by usage count, then by date
+        if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+        if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
+        return new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime();
+      })
+      .slice(0, limit);
+
+    return scoredResults;
+  }
+
+  // Simple similarity calculation (alternative to Levenshtein for better performance)
+  private calculateSimilarity(str1: string, str2: string): number {
+    if (str1 === str2) return 100;
+    
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 100;
+    
+    const distance = this.levenshteinDistance(longer, shorter);
+    return Math.round(((longer.length - distance) / longer.length) * 100);
+  }
+
+  // Levenshtein distance algorithm for fuzzy matching
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+    
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,     // deletion
+          matrix[j - 1][i] + 1,     // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
   }
 
   async createTranslationMemory(memory: InsertTranslationMemory): Promise<TranslationMemory> {
@@ -290,6 +408,70 @@ export class DatabaseStorage implements IStorage {
       .values(memory)
       .returning();
     return newMemory;
+  }
+
+  async updateTranslationMemory(id: number, memory: Partial<InsertTranslationMemory>): Promise<TranslationMemory> {
+    const [updatedMemory] = await db
+      .update(translationMemory)
+      .set({ ...memory, updatedAt: new Date() })
+      .where(eq(translationMemory.id, id))
+      .returning();
+    return updatedMemory;
+  }
+
+  async deleteTranslationMemory(id: number): Promise<void> {
+    await db.delete(translationMemory).where(eq(translationMemory.id, id));
+  }
+
+  // TM feedback operations
+  async createTmFeedback(feedback: InsertTmFeedback): Promise<TmFeedback> {
+    const [newFeedback] = await db
+      .insert(tmFeedback)
+      .values(feedback)
+      .returning();
+    
+    // Update usage count and rating when feedback is provided
+    if (feedback.action === 'used') {
+      await db
+        .update(translationMemory)
+        .set({ 
+          usageCount: sql`${translationMemory.usageCount} + 1`,
+          updatedAt: new Date()
+        })
+        .where(eq(translationMemory.id, feedback.tmSegmentId));
+    }
+    
+    return newFeedback;
+  }
+
+  async getTmFeedback(tmSegmentId: number): Promise<TmFeedback[]> {
+    return await db
+      .select()
+      .from(tmFeedback)
+      .where(eq(tmFeedback.tmSegmentId, tmSegmentId))
+      .orderBy(desc(tmFeedback.createdAt));
+  }
+
+  // TM version operations
+  async createTmVersion(version: InsertTmVersion): Promise<TmVersion> {
+    const [newVersion] = await db
+      .insert(tmVersions)
+      .values(version)
+      .returning();
+    return newVersion;
+  }
+
+  async getTmVersions(tmSegmentId: number): Promise<(TmVersion & { changedBy: User })[]> {
+    return await db
+      .select()
+      .from(tmVersions)
+      .leftJoin(users, eq(tmVersions.changedBy, users.id))
+      .where(eq(tmVersions.tmSegmentId, tmSegmentId))
+      .orderBy(desc(tmVersions.createdAt))
+      .then(rows => rows.map(row => ({
+        ...row.tm_versions,
+        changedBy: row.users!,
+      })));
   }
 
   // Activity operations

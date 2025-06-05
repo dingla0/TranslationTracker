@@ -7,6 +7,7 @@ import {
   insertTranslationProjectSchema, 
   insertGlossaryTermSchema,
   insertTranslationMemorySchema,
+  insertTmFeedbackSchema,
   insertActivitySchema,
   insertExportJobSchema
 } from "@shared/schema";
@@ -303,18 +304,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Advanced TM search endpoint with fuzzy matching
   app.get("/api/translation-memory/search", async (req, res) => {
     try {
-      const { q, similarity } = req.query;
-      if (!q || typeof q !== 'string') {
-        return res.status(400).json({ message: "Search query is required" });
+      const { 
+        sourceText, 
+        sourceLanguage, 
+        targetLanguage, 
+        similarity, 
+        event, 
+        topic, 
+        translatorId, 
+        limit 
+      } = req.query;
+      
+      if (!sourceText || typeof sourceText !== 'string') {
+        return res.status(400).json({ message: "Source text is required" });
       }
-      const similarityThreshold = similarity ? parseInt(similarity as string) : 70;
-      const matches = await storage.searchTranslationMemory(q, similarityThreshold);
+
+      const searchParams = {
+        sourceText: sourceText as string,
+        sourceLanguage: sourceLanguage as string || 'ko',
+        targetLanguage: targetLanguage as string || 'en',
+        similarity: similarity ? parseInt(similarity as string) : 70,
+        event: event as string,
+        topic: topic as string,
+        translatorId: translatorId ? parseInt(translatorId as string) : undefined,
+        limit: limit ? parseInt(limit as string) : 10
+      };
+
+      const matches = await storage.searchTranslationMemory(searchParams);
       res.json(matches);
     } catch (error) {
       console.error("Error searching translation memory:", error);
       res.status(500).json({ message: "Failed to search translation memory" });
+    }
+  });
+
+  // TM feedback endpoint for tracking usage and quality
+  app.post("/api/translation-memory/feedback", async (req, res) => {
+    try {
+      const validatedData = insertTmFeedbackSchema.parse(req.body);
+      const feedback = await storage.createTmFeedback(validatedData);
+      res.status(201).json(feedback);
+    } catch (error) {
+      console.error("Error creating TM feedback:", error);
+      res.status(400).json({ message: "Failed to create TM feedback" });
+    }
+  });
+
+  // TM segment versions endpoint
+  app.get("/api/translation-memory/:id/versions", async (req, res) => {
+    try {
+      const tmSegmentId = parseInt(req.params.id);
+      const versions = await storage.getTmVersions(tmSegmentId);
+      res.json(versions);
+    } catch (error) {
+      console.error("Error fetching TM versions:", error);
+      res.status(500).json({ message: "Failed to fetch TM versions" });
     }
   });
 
