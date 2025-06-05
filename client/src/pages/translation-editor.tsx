@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
 import BilingualEditor from "@/components/editor/bilingual-editor";
 import TMPanel from "@/components/translation-memory/tm-panel";
+import TranslationPanel from "@/components/azure-translator/translation-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ export default function TranslationEditor() {
   const [currentSourceText, setCurrentSourceText] = useState("");
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [showTMPanel, setShowTMPanel] = useState(true);
+  const [showAzurePanel, setShowAzurePanel] = useState(true);
   const { toast } = useToast();
 
   const { data: project, isLoading } = useQuery<TranslationProject>({
@@ -203,6 +205,14 @@ export default function TranslationEditor() {
                   <Bot className="h-4 w-4 mr-2" />
                   {showTMPanel ? "Hide" : "Show"} TM
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAzurePanel(!showAzurePanel)}
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  {showAzurePanel ? "Hide" : "Show"} Azure
+                </Button>
                 <Select value={project.status} onValueChange={handleStatusChange}>
                   <SelectTrigger className="w-40">
                     <SelectValue />
@@ -324,6 +334,14 @@ export default function TranslationEditor() {
               projectId={project.id}
               event={project.content.event || undefined}
               topic={project.content.topic || undefined}
+            />
+          )}
+
+          {/* Azure Custom Translator Panel */}
+          {showAzurePanel && (
+            <TranslationPanel
+              sourceText={currentSourceText || project.content.koreanTranscription || ""}
+              onTranslationSelect={setTranslatedText}
             />
           )}
         </div>
