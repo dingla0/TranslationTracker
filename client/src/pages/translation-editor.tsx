@@ -50,144 +50,108 @@ export default function TranslationEditor() {
   const [showTMPanel, setShowTMPanel] = useState(true);
   const { toast } = useToast();
 
-  const { data: project, isLoading } = useQuery<TranslationProject>({
-    queryKey: ["/api/translation-projects", id],
+  const { data: project, isLoading } = useQuery({
+    queryKey: [`/api/translation-projects/${id}`],
     enabled: !!id,
   });
 
-  const { data: tmSuggestions } = useQuery({
-    queryKey: ["/api/translation-memory/search", project?.content.koreanTranscription],
-    enabled: !!project?.content.koreanTranscription,
-  });
-
   const { data: glossaryTerms } = useQuery({
-    queryKey: ["/api/glossary"],
+    queryKey: ["/api/glossary/search", currentSourceText],
+    enabled: !!currentSourceText,
   });
 
-  // Auto-save functionality
   useEffect(() => {
-    if (!project || !translatedText) return;
-
-    const saveTimeout = setTimeout(async () => {
-      setIsAutoSaving(true);
-      try {
-        await apiRequest("PUT", `/api/translation-projects/${project.id}`, {
-          translatedText,
-          updatedAt: new Date(),
-        });
-      } catch (error) {
-        console.error("Auto-save failed:", error);
-      } finally {
-        setIsAutoSaving(false);
-      }
-    }, 2000);
-
-    return () => clearTimeout(saveTimeout);
-  }, [translatedText, project]);
-
-  // Initialize translated text from project data
-  useEffect(() => {
-    if (project?.translatedText) {
-      setTranslatedText(project.translatedText);
+    if (project) {
+      setTranslatedText(project.translatedText || "");
+      setCurrentSourceText(project.content.koreanTranscription || "");
     }
   }, [project]);
 
+  useEffect(() => {
+    if (!translatedText) return;
+    
+    const timer = setTimeout(() => {
+      handleAutoSave();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [translatedText]);
+
+  const handleAutoSave = async () => {
+    if (!project) return;
+    
+    setIsAutoSaving(true);
+    try {
+      await apiRequest(`/api/translation-projects/${project.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          translatedText,
+          progress: Math.min(100, Math.round((translatedText.length / (project.content.koreanTranscription?.length || 1)) * 100))
+        }),
+      });
+    } catch (error) {
+      console.error("Auto-save failed:", error);
+    } finally {
+      setIsAutoSaving(false);
+    }
+  };
+
   const updateProjectMutation = useMutation({
-    mutationFn: async (updates: Partial<TranslationProject>) => {
-      return await apiRequest("PUT", `/api/translation-projects/${id}`, updates);
+    mutationFn: async (data: any) => {
+      return apiRequest(`/api/translation-projects/${project?.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/translation-projects", id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/translation-projects/${id}`] });
       toast({
-        title: "Success",
-        description: "Translation saved successfully",
+        title: "Saved",
+        description: "Translation has been saved successfully.",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to save translation",
+        description: "Failed to save translation.",
         variant: "destructive",
       });
     },
   });
 
-  const translateMutation = useMutation({
-    mutationFn: async (text: string) => {
-      const response = await apiRequest("POST", "/api/translate", {
-        text,
-        from: "ko",
-        to: "en",
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setTranslatedText(data.translatedText);
-      toast({
-        title: "Success",
-        description: "Auto-translation completed",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Auto-translation failed",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleSave = () => {
-    updateProjectMutation.mutate({
-      translatedText,
-      progress: Math.min(100, Math.max(0, Math.floor((translatedText.length / (project?.content.koreanTranscription?.length || 1)) * 100))),
+  const handleTmSuggestionSelect = (suggestion: any) => {
+    setTranslatedText(suggestion.targetText);
+    toast({
+      title: "Suggestion Applied",
+      description: "Translation Memory suggestion has been applied.",
     });
   };
 
-  const handleAutoTranslate = () => {
-    if (project?.content.koreanTranscription) {
-      translateMutation.mutate(project.content.koreanTranscription);
-    }
+  const handleSave = () => {
+    if (!project) return;
+    
+    updateProjectMutation.mutate({
+      translatedText,
+      progress: Math.min(100, Math.round((translatedText.length / (project.content.koreanTranscription?.length || 1)) * 100))
+    });
   };
 
   const handleStatusChange = (newStatus: string) => {
-    updateProjectMutation.mutate({ status: newStatus });
-  };
-
-  // Handle TM suggestion selection
-  const handleTmSuggestionSelect = (suggestion: any) => {
-    setTranslatedText(prev => prev + (prev ? " " : "") + suggestion.targetText);
-    toast({
-      title: "Translation Suggestion Applied",
-      description: `Added translation from memory (${suggestion.matchScore}% match)`,
+    if (!project) return;
+    
+    updateProjectMutation.mutate({
+      status: newStatus
     });
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "default";
-      case "in_progress":
-        return "secondary";
-      case "review":
-        return "outline";
-      default:
-        return "outline";
-    }
   };
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <Header title="Translation Editor" subtitle="Loading..." />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-pulse space-y-4 w-full max-w-4xl mx-auto p-6">
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto p-6">
+          <div className="animate-pulse space-y-6">
             <div className="h-8 bg-muted rounded w-1/3"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="h-64 bg-muted rounded"></div>
-              <div className="h-64 bg-muted rounded"></div>
-            </div>
+            <div className="h-96 bg-muted rounded"></div>
           </div>
         </div>
       </div>
@@ -196,85 +160,91 @@ export default function TranslationEditor() {
 
   if (!project) {
     return (
-      <div className="flex flex-col h-full">
-        <Header title="Translation Editor" subtitle="Project not found" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h3 className="text-lg font-semibold mb-2">Project not found</h3>
-            <p className="text-muted-foreground">The requested translation project could not be found.</p>
-          </div>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto p-6">
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-center text-muted-foreground">Translation project not found.</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <Header 
-        title="Translation Editor"
-        subtitle={`${project.content.title} - ${project.content.event || "Translation Project"}`}
-        showCreateButton={false}
-      />
+    <div className="min-h-screen bg-background">
+      <Header />
       
-      <div className="flex-1 overflow-auto">
-        {/* Project Info Bar */}
-        <div className="bg-card border-b border-border p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Badge variant={getStatusBadgeVariant(project.status)}>
-                {project.status.replace("_", " ").toUpperCase()}
-              </Badge>
-              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                <span>Progress:</span>
-                <Progress value={project.progress} className="w-20" />
-                <span>{project.progress}%</span>
+      <div className="container mx-auto">
+        {/* Project Header */}
+        <div className="border-b bg-card">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-2xl font-bold">{project.content.title}</h1>
+                <p className="text-muted-foreground">
+                  {project.sourceLanguage} → {project.targetLanguage}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTMPanel(!showTMPanel)}
+                >
+                  <Bot className="h-4 w-4 mr-2" />
+                  {showTMPanel ? "Hide" : "Show"} TM
+                </Button>
+                <Select value={project.status} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="not_started">Not Started</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="review">Review</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleSave} disabled={updateProjectMutation.isPending}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {updateProjectMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Progress:</span>
+                <Progress value={project.progress} className="w-24" />
+                <span className="font-medium">{project.progress}%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Priority:</span>
+                <Badge variant="outline" className={`${
+                  project.priority === 'urgent' ? 'border-red-500 text-red-600' :
+                  project.priority === 'high' ? 'border-orange-500 text-orange-600' :
+                  project.priority === 'medium' ? 'border-blue-500 text-blue-600' :
+                  'border-green-500 text-green-600'
+                }`}>
+                  {project.priority}
+                </Badge>
               </div>
               {project.assignedTo && (
-                <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                  <span>Assigned to:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Assigned to:</span>
                   <span className="font-medium">
                     {project.assignedTo.firstName} {project.assignedTo.lastName}
                   </span>
                 </div>
               )}
             </div>
-            
-            <div className="flex items-center space-x-3">
-              <Select value={project.status} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="review">Review</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAutoTranslate}
-                disabled={translateMutation.isPending}
-              >
-                <Bot className="h-4 w-4 mr-2" />
-                {translateMutation.isPending ? "Translating..." : "Auto Translate"}
-              </Button>
-              
-              <Button
-                onClick={handleSave}
-                disabled={updateProjectMutation.isPending}
-                size="sm"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {updateProjectMutation.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
           </div>
         </div>
 
-        {/* Main Editor Layout with TM Panel */}
+        {/* Main Editor Layout */}
         <div className="flex h-full">
           {/* Editor Section */}
           <div className="flex-1 p-6">
@@ -314,16 +284,27 @@ export default function TranslationEditor() {
                 </CardContent>
               </Card>
               
-              {/* Activity History */}
+              {/* Session Info */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center">
                     <Clock className="h-4 w-4 mr-2" />
-                    Recent Activity
+                    Session Info
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">Translation progress tracked automatically</p>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Characters:</span>
+                    <span className="font-medium">
+                      {translatedText.length} / {project.content.koreanTranscription?.length || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Auto-save:</span>
+                    <span className={`font-medium ${isAutoSaving ? "text-primary" : "text-accent"}`}>
+                      {isAutoSaving ? "Saving..." : "Saved"}
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -339,43 +320,6 @@ export default function TranslationEditor() {
               topic={project.content.topic || undefined}
             />
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Characters:</span>
-                  <span className="font-medium">
-                    {translatedText.length} / {project.content.koreanTranscription?.length || 0}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Auto-save:</span>
-                  <span className={`font-medium ${isAutoSaving ? "text-primary" : "text-accent"}`}>
-                    {isAutoSaving ? "Saving..." : "Saved"}
-                  </span>
-                </div>
-                
-                <Separator />
-                
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm" className="w-full">
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Add Comment
-                  </Button>
-                  <Button variant="outline" size="sm" className="w-full">
-                    <History className="h-4 w-4 mr-2" />
-                    View History
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
     </div>
