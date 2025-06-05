@@ -9,6 +9,7 @@ import ContentManager from "@/pages/content-manager";
 import TranslationEditor from "@/pages/translation-editor";
 import Glossary from "@/pages/glossary";
 import ExportCenter from "@/pages/export-center";
+import ProgressTracking from "@/pages/progress-tracking";
 import Sidebar from "@/components/layout/sidebar";
 
 function Router() {
@@ -22,6 +23,7 @@ function Router() {
           <Route path="/editor/:id?" component={TranslationEditor} />
           <Route path="/glossary" component={Glossary} />
           <Route path="/export" component={ExportCenter} />
+          <Route path="/progress" component={ProgressTracking} />
           <Route component={NotFound} />
         </Switch>
       </main>
