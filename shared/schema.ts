@@ -73,12 +73,42 @@ export const translationMemory = pgTable("translation_memory", {
   targetText: text("target_text").notNull(),
   sourceLanguage: text("source_language").notNull().default("ko"),
   targetLanguage: text("target_language").notNull().default("en"),
+  context: text("context"), // Event/topic/scripture reference
+  event: text("event"), // Weekly Forum, Bible Study, etc.
+  topic: text("topic"), // Scripture reference or topic
   similarity: integer("similarity").default(100), // 0-100 percentage match
   contentId: integer("content_id").references(() => contents.id),
-  createdBy: integer("created_by").references(() => users.id),
-  usage_count: integer("usage_count").default(1),
+  projectId: integer("project_id").references(() => translationProjects.id),
+  translatedBy: integer("translated_by").references(() => users.id),
+  usageCount: integer("usage_count").default(0),
+  avgRating: integer("avg_rating"), // Average user rating (1-5)
+  metadata: jsonb("metadata"), // Additional context data
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// TM feedback for tracking suggestion usage and quality
+export const tmFeedback = pgTable("tm_feedback", {
+  id: serial("id").primaryKey(),
+  tmSegmentId: integer("tm_segment_id").references(() => translationMemory.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  action: text("action").notNull(), // used, dismissed, rated, copied
+  rating: integer("rating"), // 1-5 for quality rating
+  feedback: text("feedback"), // Optional text feedback
+  projectId: integer("project_id").references(() => translationProjects.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// TM versions for tracking changes over time
+export const tmVersions = pgTable("tm_versions", {
+  id: serial("id").primaryKey(),
+  tmSegmentId: integer("tm_segment_id").references(() => translationMemory.id).notNull(),
+  sourceText: text("source_text").notNull(),
+  targetText: text("target_text").notNull(),
+  changedBy: integer("changed_by").references(() => users.id).notNull(),
+  changeReason: text("change_reason"),
+  version: integer("version").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Activity log for tracking user actions
@@ -144,13 +174,45 @@ export const glossaryTermsRelations = relations(glossaryTerms, ({ one }) => ({
   }),
 }));
 
-export const translationMemoryRelations = relations(translationMemory, ({ one }) => ({
+export const translationMemoryRelations = relations(translationMemory, ({ one, many }) => ({
   content: one(contents, {
     fields: [translationMemory.contentId],
     references: [contents.id],
   }),
-  createdBy: one(users, {
-    fields: [translationMemory.createdBy],
+  project: one(translationProjects, {
+    fields: [translationMemory.projectId],
+    references: [translationProjects.id],
+  }),
+  translatedBy: one(users, {
+    fields: [translationMemory.translatedBy],
+    references: [users.id],
+  }),
+  feedback: many(tmFeedback),
+  versions: many(tmVersions),
+}));
+
+export const tmFeedbackRelations = relations(tmFeedback, ({ one }) => ({
+  tmSegment: one(translationMemory, {
+    fields: [tmFeedback.tmSegmentId],
+    references: [translationMemory.id],
+  }),
+  user: one(users, {
+    fields: [tmFeedback.userId],
+    references: [users.id],
+  }),
+  project: one(translationProjects, {
+    fields: [tmFeedback.projectId],
+    references: [translationProjects.id],
+  }),
+}));
+
+export const tmVersionsRelations = relations(tmVersions, ({ one }) => ({
+  tmSegment: one(translationMemory, {
+    fields: [tmVersions.tmSegmentId],
+    references: [translationMemory.id],
+  }),
+  changedBy: one(users, {
+    fields: [tmVersions.changedBy],
     references: [users.id],
   }),
 }));
@@ -215,6 +277,16 @@ export const insertExportJobSchema = createInsertSchema(exportJobs).omit({
   completedAt: true,
 });
 
+export const insertTmFeedbackSchema = createInsertSchema(tmFeedback).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTmVersionSchema = createInsertSchema(tmVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -230,3 +302,7 @@ export type Activity = typeof activities.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type ExportJob = typeof exportJobs.$inferSelect;
 export type InsertExportJob = z.infer<typeof insertExportJobSchema>;
+export type TmFeedback = typeof tmFeedback.$inferSelect;
+export type InsertTmFeedback = z.infer<typeof insertTmFeedbackSchema>;
+export type TmVersion = typeof tmVersions.$inferSelect;
+export type InsertTmVersion = z.infer<typeof insertTmVersionSchema>;

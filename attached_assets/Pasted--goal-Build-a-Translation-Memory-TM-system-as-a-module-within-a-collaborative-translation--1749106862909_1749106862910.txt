@@ -1,0 +1,84 @@
+{
+  "goal": "Build a Translation Memory (TM) system as a module within a collaborative translation platform for weekly Bible study content. The system should assist human translators by suggesting previous translations of similar sentences, maintaining consistency, and improving translation speed and quality.",
+
+  "features": [
+    {
+      "name": "Segment Storage",
+      "description": "Store source-target sentence pairs with metadata in a PostgreSQL database. Each record should include source text, translated text, date, translator, context (event/topic/scripture), and language pair."
+    },
+    {
+      "name": "Match Suggestion Engine",
+      "description": "When a new sentence is being translated, retrieve relevant TM suggestions using exact match (100%) and fuzzy match (80–99% similarity). Use Levenshtein distance or sentence embeddings (e.g., cosine similarity) for fuzzy matching. Rank suggestions by score, date, and context."
+    },
+    {
+      "name": "Translation Memory UI Panel",
+      "description": "Create a React sidebar component within the bilingual editor that shows TM suggestions. Display match score, source text, translated result, metadata (translator, date, scripture, forum), and color-coded match type (green = exact, yellow = fuzzy)."
+    },
+    {
+      "name": "Manual Review Actions",
+      "description": "Allow translators to copy/paste suggestions into the editor, dismiss irrelevant matches, or rate suggestions (e.g., 👍/👎). Track whether a suggestion was used or ignored."
+    },
+    {
+      "name": "Search and Filter",
+      "description": "Add a search bar to manually look up past TM segments. Include filters by language, forum/event, topic, translator, confidence score."
+    },
+    {
+      "name": "Contribution & Version History",
+      "description": "Track changes to each TM segment. Display historical versions and contributors when hovering or expanding a match entry."
+    }
+  ],
+
+  "smart_enhancements": [
+    {
+      "name": "AI Rewriting",
+      "description": "If a fuzzy match is inserted, offer a button to 'Rewrite with AI' using Azure Translator or Hugging Face model to paraphrase the match."
+    },
+    {
+      "name": "Termbase Highlighting",
+      "description": "Highlight glossary terms inside TM match suggestions. Tooltip should show glossary definition. Integrate with termbase module via API."
+    },
+    {
+      "name": "Interactive Diff Viewer",
+      "description": "Display differences between the new source sentence and the matched sentence (for fuzzy matches) using visual highlighting or diff view."
+    },
+    {
+      "name": "Contextual Scoring",
+      "description": "Boost scores for TM segments from similar domains (e.g., same forum or scripture reference). Prioritize matches from the same translator when available."
+    }
+  ],
+
+  "tech_stack": {
+    "backend": ["Node.js", "Express", "PostgreSQL", "ElasticSearch (optional for search)", "Azure Translator API"],
+    "frontend": ["React", "TypeScript", "Tailwind CSS", "Tiptap or Slate.js for editor"],
+    "AI": ["Hugging Face Transformers", "Azure Translator Custom Dictionary"],
+    "auth": ["Firebase Auth or Azure AD B2C"]
+  },
+
+  "sample_usage": {
+    "source": "너희는 세상의 빛이라",
+    "tm_suggestions": [
+      {
+        "match": "You are the light of the world.",
+        "score": 100,
+        "translator": "eng-team1",
+        "forum": "Matthew 5:14",
+        "date": "2023-01-15"
+      },
+      {
+        "match": "You are the light for nations.",
+        "score": 85,
+        "translator": "eng-team2",
+        "forum": "Isaiah 49:6",
+        "date": "2022-11-05"
+      }
+    ]
+  },
+
+  "instructions": [
+    "Build the backend TM API endpoint: `/api/tm/search?source=...` that returns sorted suggestions with metadata and match score.",
+    "Connect the frontend editor to fetch and display TM suggestions live as the user types a source sentence.",
+    "Integrate glossary and AI modules where relevant for smart enhancements.",
+    "Ensure data integrity with unique segment indexing (language pair + source text).",
+    "Implement feedback tracking for continuous TM improvement."
+  ]
+}
