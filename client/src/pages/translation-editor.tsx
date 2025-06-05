@@ -5,20 +5,21 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
 import BilingualEditor from "@/components/editor/bilingual-editor";
+import TMPanel from "@/components/translation-memory/tm-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Save, Bot, History, MessageSquare, Clock } from "lucide-react";
+import { Save, Bot, History, MessageSquare, Clock, Zap } from "lucide-react";
 
 interface TranslationProject {
   id: number;
   contentId: number;
   sourceLanguage: string;
   targetLanguage: string;
-  assignedTo: number | null;
+  assignedToId: number | null;
   status: string;
   priority: string;
   dueDate: string | null;
@@ -44,7 +45,9 @@ interface TranslationProject {
 export default function TranslationEditor() {
   const { id } = useParams();
   const [translatedText, setTranslatedText] = useState("");
+  const [currentSourceText, setCurrentSourceText] = useState("");
   const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [showTMPanel, setShowTMPanel] = useState(true);
   const { toast } = useToast();
 
   const { data: project, isLoading } = useQuery<TranslationProject>({
@@ -149,6 +152,15 @@ export default function TranslationEditor() {
 
   const handleStatusChange = (newStatus: string) => {
     updateProjectMutation.mutate({ status: newStatus });
+  };
+
+  // Handle TM suggestion selection
+  const handleTmSuggestionSelect = (suggestion: any) => {
+    setTranslatedText(prev => prev + (prev ? " " : "") + suggestion.targetText);
+    toast({
+      title: "Translation Suggestion Applied",
+      description: `Added translation from memory (${suggestion.matchScore}% match)`,
+    });
   };
 
   const getStatusBadgeVariant = (status: string) => {
@@ -262,84 +274,76 @@ export default function TranslationEditor() {
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Main Editor */}
-          <BilingualEditor
-            sourceText={project.content.koreanTranscription || ""}
-            targetText={translatedText}
-            onTargetTextChange={setTranslatedText}
-            sourceLanguage="Korean"
-            targetLanguage="English"
-          />
-
-          {/* Side Panels */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Translation Memory */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center">
-                  <History className="h-4 w-4 mr-2" />
-                  Translation Memory
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {tmSuggestions && tmSuggestions.length > 0 ? (
-                  tmSuggestions.slice(0, 3).map((suggestion: any, index: number) => (
-                    <div key={index} className="p-3 bg-muted rounded-lg text-sm">
-                      <div className="font-medium text-foreground mb-1">
-                        {suggestion.similarity}% match
-                      </div>
-                      <div className="text-muted-foreground mb-2">
-                        {suggestion.sourceText}
-                      </div>
-                      <div className="text-foreground">
-                        {suggestion.targetText}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No translation memory matches found.</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Glossary Terms */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Relevant Terms
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {glossaryTerms && glossaryTerms.length > 0 ? (
-                  glossaryTerms.slice(0, 4).map((term: any) => (
-                    <div key={term.id} className="p-3 bg-muted rounded-lg text-sm">
-                      <div className="font-medium text-foreground">
-                        {term.koreanTerm}
-                      </div>
-                      <div className="text-muted-foreground">
-                        {term.englishTerm}
-                      </div>
-                      {term.usage && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {term.usage}
+        {/* Main Editor Layout with TM Panel */}
+        <div className="flex h-full">
+          {/* Editor Section */}
+          <div className="flex-1 p-6">
+            <BilingualEditor
+              sourceText={project.content.koreanTranscription || ""}
+              targetText={translatedText}
+              onTargetTextChange={setTranslatedText}
+              sourceLanguage="Korean"
+              targetLanguage="English"
+            />
+            
+            {/* Bottom Panels */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              {/* Glossary Terms */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Relevant Terms
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {glossaryTerms && Array.isArray(glossaryTerms) && glossaryTerms.length > 0 ? (
+                    glossaryTerms.slice(0, 3).map((term: any, index: number) => (
+                      <div key={index} className="p-3 bg-muted rounded-lg text-sm">
+                        <div className="font-medium text-foreground mb-1">
+                          {term.koreanTerm} → {term.englishTerm}
                         </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No relevant glossary terms found.</p>
-                )}
-              </CardContent>
-            </Card>
+                        <div className="text-muted-foreground">
+                          {term.definition}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No relevant terms found.</p>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Activity History */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Recent Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Translation progress tracked automatically</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
 
-            {/* Status & Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center">
-                  <Clock className="h-4 w-4 mr-2" />
-                  Session Info
+          {/* Translation Memory Panel */}
+          {showTMPanel && (
+            <TMPanel
+              sourceText={currentSourceText || project.content.koreanTranscription || ""}
+              onSuggestionSelect={handleTmSuggestionSelect}
+              projectId={project.id}
+              event={project.content.event || undefined}
+              topic={project.content.topic || undefined}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
