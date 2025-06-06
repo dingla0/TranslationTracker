@@ -47,4 +47,4 @@ if (-not (Test-Path $outputDir)) {
 # Output to file
 $markdownContent | Out-File -FilePath $outputFile -Encoding UTF8
 
-Write-Host "✅ Directory structure updated in $outputFile"
+Write-Host "Directory structure updated in $outputFile"

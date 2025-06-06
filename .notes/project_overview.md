@@ -2,19 +2,19 @@
 
 ## Project Overview
 
-A comprehensive, collaborative Translation Management System specifically designed for Bible study content, enabling efficient Korean-to-English translation workflows with advanced AI assistance and translation memory capabilities.
+A comprehensive, collaborative Translation Management System specifically designed for Bible study content, enabling efficient translation workflows with advanced AI assistance and translation memory capabilities.
 
 ## Goals
 
 **Primary Objectives:**
-- Streamline translation workflows for Korean Bible study forum content
+- Streamline translation workflows for Bible study forum content
 - Provide domain-specific AI translation assistance for biblical and theological terminology
 - Maintain translation consistency through intelligent memory systems
 - Enable collaborative translation with quality assurance processes
 - Support multi-format content export for various publishing needs
 
 **Target Users:**
-- Korean-English translators specializing in religious content
+- Translators specializing in religious content
 - Bible study coordinators and content managers
 - Translation reviewers and quality assurance teams
 - Project managers overseeing translation workflows
@@ -23,10 +23,10 @@ A comprehensive, collaborative Translation Management System specifically design
 
 ### Frontend (React + TypeScript)
 - **Dashboard**: Project overview, statistics, and activity tracking
-- **Translation Editor**: Bilingual editor with side-by-side Korean-English interface
+- **Translation Editor**: Bilingual editor with side-by-side target language to source language interface
 - **Translation Memory Panel**: Fuzzy matching suggestions from previous translations
 - **Azure Custom Translator Panel**: Domain-specific AI translations for biblical/theological content
-- **Content Management**: Upload, organize, and manage Korean video transcriptions
+- **Content Management**: Upload, organize, and manage source language content
 - **Glossary Management**: Maintain biblical and theological terminology databases
 - **Quality Assurance**: Review workflows and translation validation tools
 - **Export Center**: Multi-format export (DOCX, PDF, TXT) with custom templates
@@ -36,13 +36,13 @@ A comprehensive, collaborative Translation Management System specifically design
 - **Database Layer**: PostgreSQL with Drizzle ORM for type-safe database operations
 - **Translation Memory Engine**: Fuzzy matching algorithm for translation suggestions
 - **Azure Translator Integration**: Custom domain-specific translation models
-- **File Processing**: Video transcription upload and content management
+- **File Processing**: Source language content upload and content management
 - **User Management**: Role-based access control and collaboration features
 - **Activity Logging**: Comprehensive audit trail and usage analytics
 
 ### Database Schema
 - **Users**: Translator profiles with roles and specializations
-- **Contents**: Korean video transcriptions and metadata
+- **Contents**: Source language content and metadata
 - **Translation Projects**: Assignment, progress tracking, and workflow management
 - **Translation Memory**: Searchable translation segments with context metadata
 - **Glossary Terms**: Biblical and theological terminology with definitions
@@ -75,7 +75,7 @@ A comprehensive, collaborative Translation Management System specifically design
 ## Sample User Journeys
 
 ### Journey 1: Content Manager Creating Translation Project
-1. **Upload Content**: Upload Korean video transcription with metadata (event, topic, date)
+1. **Upload Content**: Upload source language content with metadata (event, topic, date)
 2. **Create Project**: Generate translation project with target language and priority
 3. **Assign Translator**: Select appropriate translator based on specialization and workload
 4. **Set Timeline**: Establish due dates and milestone checkpoints
@@ -83,7 +83,7 @@ A comprehensive, collaborative Translation Management System specifically design
 
 ### Journey 2: Translator Working on Biblical Content
 1. **Access Assignment**: Navigate to assigned translation project from dashboard
-2. **Review Source**: Read Korean transcription with context information (event: "Weekly Forum", topic: "Romans 12:1-8")
+2. **Review Source**: Read source language content with context information (event: "Weekly Forum", topic: "Romans 12:1-8")
 3. **Translation Memory**: Check existing translations for similar biblical passages
 4. **AI Assistance**: Use Azure Biblical model for domain-specific translation suggestions
 5. **Glossary Reference**: Verify theological terminology consistency
@@ -92,7 +92,7 @@ A comprehensive, collaborative Translation Management System specifically design
 
 ### Journey 3: Reviewer Conducting Quality Assurance
 1. **Review Queue**: Access completed translations requiring quality review
-2. **Side-by-Side Comparison**: Compare Korean source with English translation
+2. **Side-by-Side Comparison**: Compare source language content with target language translation
 3. **Context Validation**: Verify translation accuracy within biblical context
 4. **Terminology Check**: Ensure consistency with established glossary
 5. **Feedback Provision**: Add reviewer notes and suggestions for improvement
